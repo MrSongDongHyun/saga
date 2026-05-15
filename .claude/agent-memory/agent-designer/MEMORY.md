@@ -1,0 +1,1 @@
+- [SAGA 프로젝트](project_saga.md) — AI 소설·캐릭터 채팅 웹앱, Next.js 14 + Prisma + Claude CLI, 멀티 에이전트 4단계 워크플로우
