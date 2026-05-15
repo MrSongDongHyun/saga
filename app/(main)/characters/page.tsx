@@ -6,7 +6,7 @@ import useSWR from "swr";
 import Image from "next/image";
 import Link from "next/link";
 import { CharacterCard, CharacterCardProps } from "@/components/ui/CharacterCard";
-import { SectionRow } from "@/components/ui/SectionRow";
+import SectionRow from "@/components/ui/SectionRow";
 import { NumberBadge } from "@/components/ui/NumberBadge";
 
 // ─────────────────────────────────────────────

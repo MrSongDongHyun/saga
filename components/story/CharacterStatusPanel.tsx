@@ -117,7 +117,8 @@ export function CharacterStatusPanel({ status, turnCount, isOpen, onToggle }: Pr
         onClick={onToggle}
         aria-label={isOpen ? "STATUS 패널 닫기" : "STATUS 패널 열기"}
         className={[
-          "fixed right-0 top-1/2 -translate-y-1/2 z-30",
+          "fixed right-0 z-30",
+          "top-[calc(50%+1.75rem)] -translate-y-1/2",
           "w-7 h-20 bg-bg2 border border-r-0 border-bg3 rounded-l-xl",
           "flex items-center justify-center text-t2 hover:text-t1 hover:bg-bg3 transition-all",
           isOpen ? "right-64" : "right-0",
@@ -145,7 +146,7 @@ export function CharacterStatusPanel({ status, turnCount, isOpen, onToggle }: Pr
       {/* 패널 본체 */}
       <div
         className={[
-          "fixed right-0 top-0 h-full z-20 w-64",
+          "fixed right-0 top-14 bottom-0 z-20 w-64",
           "bg-bg2/95 backdrop-blur-sm border-l border-bg3",
           "overflow-y-auto scrollbar-hide",
           "transition-transform duration-300 ease-in-out",
@@ -345,25 +346,41 @@ export function parseAIResponse(raw: string): {
   rawStatus: string;
   choices: string[];
 } {
-  // [STORY] 섹션 추출
-  const storyMatch = raw.match(/\[STORY\]([\s\S]*?)\[\/STORY\]/);
-  const story = storyMatch ? storyMatch[1].trim() : raw;
+  // 태그 이름으로 섹션 내용을 추출하는 헬퍼.
+  // 형식 1: [TAG]...[/TAG]  (정석 형식)
+  // 형식 2: # [TAG] 또는 ## [TAG] 헤더 + --- 구분자 (마크다운 형식)
+  function extractSection(tag: string): string | null {
+    // 형식 1
+    const exactRe = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`);
+    const exact = raw.match(exactRe);
+    if (exact) return exact[1].trim();
 
-  // [STATUS_UPDATE] 섹션 추출 (파싱은 parseStatusUpdate에서)
-  const statusMatch = raw.match(/\[STATUS_UPDATE\]([\s\S]*?)\[\/STATUS_UPDATE\]/);
-  const rawStatus = statusMatch ? raw : "";
+    // 형식 2: --- 구분자 기반으로 섹션 분리
+    const headerRe = new RegExp(`(?:^|\\n)#+\\s*\\[${tag}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n\\s*---\\s*(?:\\n|$)|\\n#+\\s*\\[|$)`);
+    const header = raw.match(headerRe);
+    if (header) return header[1].trim();
 
-  // [CHOICES] 섹션 추출
-  const choicesMatch = raw.match(/\[CHOICES\]([\s\S]*?)\[\/CHOICES\]/);
+    return null;
+  }
+
+  const storyContent = extractSection("STORY");
+  const statusContent = extractSection("STATUS_UPDATE");
+  const choicesContent = extractSection("CHOICES");
+
+  const story = storyContent ?? raw.trim();
+
+  // parseStatusUpdate가 기대하는 [STATUS_UPDATE]...[/STATUS_UPDATE] 형식으로 정규화
+  const rawStatus = statusContent
+    ? `[STATUS_UPDATE]\n${statusContent}\n[/STATUS_UPDATE]`
+    : "";
+
   const choices: string[] = [];
-  if (choicesMatch) {
-    choicesMatch[1]
-      .trim()
-      .split("\n")
-      .forEach((line) => {
-        const clean = line.replace(/^[-*\d.]\s*/, "").trim();
-        if (clean) choices.push(clean);
-      });
+  if (choicesContent) {
+    choicesContent.split("\n").forEach((line) => {
+      // 번호(1. 2. 3.), 대시(- *) 등 앞 기호 제거
+      const clean = line.replace(/^[-*\d.]\s*/, "").trim();
+      if (clean) choices.push(clean);
+    });
   }
 
   return { story, rawStatus, choices };

@@ -274,5 +274,3 @@ export default function ImageGenModal({ open, onClose, defaultPrompt = "" }: Pro
     </>
   );
 }
-;
-}

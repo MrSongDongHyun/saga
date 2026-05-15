@@ -218,20 +218,3 @@ export async function streamClaude(options: ClaudeStreamOptions): Promise<void> 
     });
   });
 }
- {
-        onDone(fullText.trim());
-      } else {
-        onError(new Error(`Claude CLI 종료 코드: ${code ?? "unknown"}`));
-      }
-      resolve();
-    });
-
-    proc.on("error", (err: Error) => {
-      clearTimeout(timer);
-      if (settled) return;
-      settled = true;
-      onError(new Error(`Claude CLI 실행 실패: ${err.message}`));
-      resolve();
-    });
-  });
-}

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -41,24 +40,10 @@ type PlaySessionItem = {
   };
 };
 
-type BookmarkItem = {
-  id: string;
-  storyId: string;
-  createdAt: string;
-  story: {
-    id: string;
-    title: string;
-    coverImage: string | null;
-    author: { nickname: string };
-  };
-};
-
 // chat 세션과 play 세션을 updatedAt 기준으로 합산하기 위한 통합 타입
 type RecentItem =
   | { type: "chat"; data: ChatSessionItem; updatedAt: string }
   | { type: "play"; data: PlaySessionItem; updatedAt: string };
-
-type SidebarTab = "recent" | "bookmark";
 
 // ─────────────────────────────────────────────
 // SWR fetcher
@@ -128,7 +113,7 @@ function RecentCombinedList({
   if (items.length === 0) {
     return (
       <p className="px-4 py-6 text-sm text-t2 text-center">
-        최근 대화 기록이 없어요.
+        에피소드 기록이 없어요.
       </p>
     );
   }
@@ -211,61 +196,6 @@ function RecentCombinedList({
   );
 }
 
-function BookmarkList({
-  bookmarks,
-  onItemClick,
-}: {
-  bookmarks: BookmarkItem[];
-  onItemClick?: () => void;
-}) {
-  if (bookmarks.length === 0) {
-    return (
-      <p className="px-4 py-6 text-sm text-t2 text-center">
-        북마크한 스토리가 없어요.
-      </p>
-    );
-  }
-
-  return (
-    <ul>
-      {bookmarks.map((bm) => (
-        <li key={bm.id}>
-          <Link
-            href={`/stories/${bm.story.id}`}
-            onClick={onItemClick}
-            className="flex items-start gap-3 px-4 py-3 hover:bg-bg3 transition-colors"
-          >
-            {/* 커버 썸네일 */}
-            {bm.story.coverImage ? (
-              <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 relative">
-                <Image
-                  src={bm.story.coverImage}
-                  alt={bm.story.title}
-                  fill
-                  className="object-cover"
-                  sizes="40px"
-                />
-              </div>
-            ) : (
-              <div className="w-10 h-10 rounded-lg bg-bg3 shrink-0" />
-            )}
-
-            {/* 텍스트 영역 */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-t1 truncate font-medium">
-                {bm.story.title}
-              </p>
-              <p className="text-xs text-t2 truncate mt-0.5">
-                {bm.story.author.nickname}
-              </p>
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 // ─────────────────────────────────────────────
 // 사이드바 props
 // ─────────────────────────────────────────────
@@ -281,8 +211,6 @@ type SidebarProps = {
 
 function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
   const { status } = useSession();
-  const [activeTab, setActiveTab] = useState<SidebarTab>("recent");
-
   const isAuthenticated = status === "authenticated";
 
   const { data: sessionsData } = useSWR<{ sessions: ChatSessionItem[] }>(
@@ -292,13 +220,6 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 
   const { data: playSessionsData } = useSWR<{ sessions: PlaySessionItem[] }>(
     isAuthenticated ? "/api/play-sessions?limit=10" : null,
-    fetcher
-  );
-
-  const { data: bookmarksData } = useSWR<{ bookmarks: BookmarkItem[] }>(
-    isAuthenticated && activeTab === "bookmark"
-      ? "/api/users/me/bookmarks?limit=10"
-      : null,
     fetcher
   );
 
@@ -316,32 +237,9 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 
   return (
     <>
-      {/* 탭 헤더 */}
-      <div className="flex border-b border-bg3 shrink-0">
-        <button
-          type="button"
-          onClick={() => setActiveTab("recent")}
-          className={[
-            "flex-1 py-3 text-sm font-medium transition-colors",
-            activeTab === "recent"
-              ? "text-t1 border-b-2 border-red"
-              : "text-t2 hover:text-t1",
-          ].join(" ")}
-        >
-          최근 대화
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("bookmark")}
-          className={[
-            "flex-1 py-3 text-sm font-medium transition-colors",
-            activeTab === "bookmark"
-              ? "text-t1 border-b-2 border-red"
-              : "text-t2 hover:text-t1",
-          ].join(" ")}
-        >
-          북마크
-        </button>
+      {/* 헤더 */}
+      <div className="px-4 py-3 border-b border-bg3 shrink-0">
+        <p className="text-sm font-semibold text-t1">에피소드</p>
       </div>
 
       {/* 콘텐츠 */}
@@ -370,17 +268,9 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
           </div>
         )}
 
-        {/* 최근 대화 탭 */}
-        {isAuthenticated && activeTab === "recent" && (
+        {/* 최근 대화 목록 */}
+        {isAuthenticated && (
           <RecentCombinedList items={recentItems} onItemClick={onItemClick} />
-        )}
-
-        {/* 북마크 탭 */}
-        {isAuthenticated && activeTab === "bookmark" && (
-          <BookmarkList
-            bookmarks={bookmarksData?.bookmarks ?? []}
-            onItemClick={onItemClick}
-          />
         )}
       </div>
     </>

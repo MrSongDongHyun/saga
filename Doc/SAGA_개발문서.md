@@ -1,7 +1,7 @@
 # SAGA — AI 소설·캐릭터 채팅 플랫폼 개발 문서
 
 > **개인 PC 베타 운용 기준** | 무료 스택 | 로컬 우선 설계  
-> 최종 업데이트: 2026-05-15
+> 최종 업데이트: 2026-05-16 (2차)
 
 ---
 
@@ -111,7 +111,7 @@ saga/
 ├── components/
 │   ├── layout/
 │   │   ├── Header.tsx
-│   │   ├── Sidebar.tsx                  # 최근대화(채팅+플레이) + 북마크 탭
+│   │   ├── Sidebar.tsx                  # 에피소드(채팅+플레이 합산) — 항상 표시
 │   │   └── MainLayoutClient.tsx
 │   ├── story/
 │   │   ├── StartSettingsModal.tsx       # 플레이 시작 설정 (세력·캐릭터)
@@ -468,6 +468,13 @@ GET    /api/admin/stats   전체 통계 (유저수·스토리수·캐릭터수·
 
 **버그 수정 이력:**
 - `turnCount + 1`을 API에 전달 → 첫 턴(turn=0)에서 Claude가 `[CHOICES]` 생략하는 문제 해결
+- `SectionRow` default export를 named import로 잘못 참조하던 문제 수정 (`page.tsx`, `characters/page.tsx`)
+- `StartSettingsModal.tsx` / `ImageGenModal.tsx` / `claude.ts` / `messages/route.ts` 중복 코드 잔존으로 인한 구문 오류 수정
+- `lib/validators/chat.ts`: `validateSendMessage` 누락 추가, `UpdateSessionInput`에 `title` 필드 추가
+- `parseAIResponse` 강화: Claude가 `# [TAG]` + `---` 마크다운 형식으로 응답할 때도 섹션을 정상 파싱하도록 수정; `rawStatus`를 `[STATUS_UPDATE]...[/STATUS_UPDATE]` 정규화 형식으로 반환
+- 시스템 프롬프트 강화: 닫는 태그 필수 명시, 마크다운 헤더·수평선 사용 금지 규칙 추가
+- `CharacterStatusPanel`: `top-0 h-full` → `top-14 bottom-0` (전역 헤더 겹침 수정); 토글 버튼 수직 중앙 헤더 높이만큼 보정
+- 스토리 플레이 페이지: `fixed inset-0` → `fixed top-14 bottom-0 left-0 md:left-60` — 전역 헤더·사이드바와 겹치지 않도록 수정, 에피소드 탭 항상 표시
 
 ### 캐릭터 채팅 시스템
 
@@ -476,11 +483,19 @@ GET    /api/admin/stats   전체 통계 (유저수·스토리수·캐릭터수·
 - 메모리 4요소 로드/저장 (`lib/memory.ts`)
 - 키워드북: 대화 중 키워드 감지 시 컨텍스트 자동 삽입
 
-### 사이드바 최근대화 탭
+### 사이드바 에피소드 패널
 
-채팅 세션과 플레이 세션을 `updatedAt` 내림차순으로 합산해서 최대 15개 표시:
+탭 전환 없이 항상 표시. 채팅 세션과 플레이 세션을 `updatedAt` 내림차순으로 합산해서 최대 15개 표시:
 - **채팅 세션**: 캐릭터 아바타 + 캐릭터명 + 마지막 메시지 미리보기
 - **플레이 세션**: 책 아이콘 + 스토리명 + `N턴 진행 중`
+
+플레이 세션 생성/업데이트 직후 `swrMutate("/api/play-sessions?limit=10")` 호출로 즉시 갱신.
+
+**레이아웃 정책 (full-screen 페이지에서 사이드바 노출):**
+- 스토리 플레이 등 자체 레이아웃 페이지는 `fixed inset-0` 대신 `fixed top-14 bottom-0 left-0 md:left-60`을 사용
+- `top-14`: 전역 헤더(56px) 아래 시작
+- `md:left-60`: PC에서 사이드바(240px) 오른쪽에 위치해 에피소드 탭 항상 노출
+- 모바일(`left-0`): 사이드바가 드로어 오버레이이므로 전체 폭 사용
 
 ---
 
@@ -580,7 +595,7 @@ npx tsc --noEmit     # TypeScript 오류 확인
 - L1~L6 프롬프트 조립 / 메모리 4요소
 
 **UI**
-- 사이드바: 최근대화(채팅+플레이 합산) + 북마크 탭
+- 사이드바: 에피소드 패널(채팅+플레이 합산, 항상 표시), 탭 없음
 - StoryCard / CharacterCard
 - ImageGenModal (SD WebUI 연동)
 - 내 작품 페이지 (스토리+캐릭터 관리)
@@ -601,4 +616,4 @@ npx tsc --noEmit     # TypeScript 오류 확인
 
 ---
 
-*SAGA 개발문서 v2.0 — 2026-05-15 기준 실제 구현 현황*
+*SAGA 개발문서 v2.2 — 2026-05-16 기준 실제 구현 현황*

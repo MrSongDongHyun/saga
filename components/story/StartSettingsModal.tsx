@@ -282,4 +282,3 @@ export function StartSettingsModal({ storyTitle, genre, onConfirm }: Props) {
     </div>
   );
 }
-}

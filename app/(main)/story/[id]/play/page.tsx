@@ -12,6 +12,7 @@ import {
   ChangeEvent,
 } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { mutate as swrMutate } from "swr";
 import Link from "next/link";
 
 import {
@@ -589,6 +590,7 @@ export default function StoryPlayPage() {
             const url = new URL(window.location.href);
             url.searchParams.set("session", data.id);
             window.history.replaceState({}, "", url.toString());
+            swrMutate("/api/play-sessions?limit=10");
           }
         })
         .catch(() => {});
@@ -710,7 +712,9 @@ export default function StoryPlayPage() {
                 { role: "ASSISTANT", content: storyContent, choices },
               ],
             }),
-          }).catch(() => {});
+          })
+            .then(() => swrMutate("/api/play-sessions?limit=10"))
+            .catch(() => {});
         } else if (chapterId) {
           // 세션이 없으면 (setup 없이 시작한 경우) 생성
           fetch("/api/play-sessions", {
@@ -743,7 +747,9 @@ export default function StoryPlayPage() {
                       { role: "ASSISTANT", content: storyContent, choices },
                     ],
                   }),
-                }).catch(() => {});
+                })
+                  .then(() => swrMutate("/api/play-sessions?limit=10"))
+                  .catch(() => {});
               }
             })
             .catch(() => {});
@@ -902,7 +908,7 @@ export default function StoryPlayPage() {
 
       {/* 메인 레이아웃 */}
       <div
-        className="fixed inset-0 flex flex-col bg-bg z-10 overflow-hidden transition-all duration-300"
+        className="fixed top-14 bottom-0 left-0 md:left-60 flex flex-col bg-bg z-10 overflow-hidden transition-all duration-300"
         style={{ right: statusPanelOpen ? "256px" : "28px" }}
       >
         {/* ── 헤더 ── */}

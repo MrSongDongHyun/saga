@@ -17,7 +17,8 @@ export type SendMessageInput = {
 };
 
 export type UpdateSessionInput = {
-  model: ClaudeModelId;
+  model?: ClaudeModelId;
+  title?: string;
 };
 
 // ─────────────────────────────────────────────
@@ -66,6 +67,27 @@ export function validateCreateSession(body: unknown): CreateSessionInput {
 }
 
 /**
+ * 메시지 전송 입력값 검증
+ */
+export function validateSendMessage(body: unknown): SendMessageInput {
+  if (typeof body !== "object" || body === null) {
+    badRequest("잘못된 요청 형식입니다.");
+  }
+
+  const raw = body as Record<string, unknown>;
+
+  if (typeof raw.content !== "string" || raw.content.trim().length === 0) {
+    badRequest("메시지 내용이 필요합니다.", "content");
+  }
+
+  if ((raw.content as string).length > 4000) {
+    badRequest("메시지는 최대 4000자여야 합니다.", "content");
+  }
+
+  return { content: (raw.content as string).trim() };
+}
+
+/**
  * 채팅 세션 업데이트 입력값 검증
  * model: CLAUDE_MODELS에 포함된 ID여야 함
  */
@@ -75,14 +97,25 @@ export function validateUpdateSession(body: unknown): UpdateSessionInput {
   }
 
   const raw = body as Record<string, unknown>;
-  const validModelIds = CLAUDE_MODELS.map((m) => m.id);
+  const result: UpdateSessionInput = {};
 
-  if (typeof raw.model !== "string" || !(validModelIds as string[]).includes(raw.model)) {
-    badRequest(
-      `model은 ${validModelIds.join(", ")} 중 하나여야 합니다.`,
-      "model"
-    );
+  if (raw.model !== undefined) {
+    const validModelIds = CLAUDE_MODELS.map((m) => m.id);
+    if (typeof raw.model !== "string" || !(validModelIds as string[]).includes(raw.model)) {
+      badRequest(`model은 ${validModelIds.join(", ")} 중 하나여야 합니다.`, "model");
+    }
+    result.model = raw.model as ClaudeModelId;
   }
 
-  return { model: raw.model as ClaudeModelId };
+  if (raw.title !== undefined) {
+    if (typeof raw.title !== "string") {
+      badRequest("제목은 문자열이어야 합니다.", "title");
+    }
+    if ((raw.title as string).length > 100) {
+      badRequest("제목은 최대 100자여야 합니다.", "title");
+    }
+    result.title = (raw.title as string).trim() || undefined;
+  }
+
+  return result;
 }

@@ -305,9 +305,3 @@ export const POST = withDynamicHandler<SessionParams>(
     });
   }
 );
-
-      userMessage: serializeMessage(userMessage),
-      assistantMessage: serializeMessage(assistantMessage),
-    });
-  }
-);

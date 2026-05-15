@@ -5,7 +5,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { StoryCard, StoryCardProps } from "@/components/ui/StoryCard";
-import { SectionRow } from "@/components/ui/SectionRow";
+import SectionRow from "@/components/ui/SectionRow";
 
 // ─────────────────────────────────────────────
 // 상수
