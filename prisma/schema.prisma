@@ -1,0 +1,217 @@
+// SAGA 데이터베이스 스키마
+// SQLite 사용 (향후 PostgreSQL 마이그레이션 예정)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// SQLite enum 대체 상수
+// Role:        "USER" | "ADMIN"
+// Visibility:  "PUBLIC" | "PRIVATE" | "UNLISTED"
+// StoryStatus: "ONGOING" | "COMPLETED" | "HIATUS"
+// MessageRole: "USER" | "ASSISTANT" | "SYSTEM"
+// ─────────────────────────────────────────────
+
+/// 사용자 계정
+model User {
+  id           String   @id @default(cuid())
+  loginId      String   @unique
+  password     String
+  nickname     String   @unique
+  role         String   @default("USER")
+  isActive     Boolean  @default(true)
+  profileImage String?
+  bio          String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stories      Story[]
+  characters   Character[]
+  chatSessions ChatSession[]
+  likes        Like[]
+  bookmarks    Bookmark[]
+  playSessions PlaySession[]
+
+  @@index([loginId])
+  @@index([createdAt])
+}
+
+/// 소설/스토리
+model Story {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  genre       String
+  tags        String
+  status      String   @default("ONGOING")
+  visibility  String   @default("PUBLIC")
+  coverImage  String?
+  viewCount   Int      @default(0)
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  chapters  Chapter[]
+  likes     Like[]
+  bookmarks Bookmark[]
+  playSessions PlaySession[]
+
+  @@index([authorId])
+  @@index([visibility, createdAt])
+  @@index([status])
+}
+
+/// 챕터
+model Chapter {
+  id          String   @id @default(cuid())
+  storyId     String
+  title       String
+  content     String
+  orderIndex  Int
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, orderIndex])
+}
+
+/// AI 캐릭터
+model Character {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  personality     String?
+  backgroundStory String?
+  firstMessage    String?
+  avatar          String?
+  tags            String
+  visibility      String   @default("PUBLIC")
+  creatorId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  creator      User          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  chatSessions ChatSession[]
+  keywords     Keyword[]
+
+  @@index([creatorId])
+  @@index([visibility, createdAt])
+}
+
+/// 키워드북 (캐릭터별 컨텍스트 자동 삽입)
+model Keyword {
+  id          String   @id @default(cuid())
+  characterId String
+  keyword     String
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId])
+}
+
+/// 채팅 세션
+model ChatSession {
+  id          String   @id @default(cuid())
+  userId      String
+  characterId String
+  title       String?
+  model       String   @default("claude-sonnet-4-6")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([userId, characterId])
+  @@index([userId, createdAt])
+}
+
+/// 채팅 메시지
+model Message {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+/// 스토리 플레이 세션
+model PlaySession {
+  id          String   @id @default(cuid())
+  userId      String
+  storyId     String
+  chapterId   String
+  branchId    String?
+  playerSetup String   // JSON string (PlayerSetup)
+  charStatus  String   // JSON string (CharacterStatus)
+  turnCount   Int      @default(0)
+  lastMessage String?  // 마지막 AI 응답 미리보기 (100자 이내)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story    Story        @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  messages PlayMessage[]
+
+  @@index([userId, updatedAt])
+  @@index([storyId])
+}
+
+/// 플레이 메시지
+model PlayMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String   // USER | ASSISTANT
+  content   String
+  choices   String?  // JSON string (string[])
+  createdAt DateTime @default(now())
+
+  session PlaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+/// 좋아요 (User ↔ Story)
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  storyId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId])
+  @@index([storyId])
+}
+
+/// 북마크 (User ↔ Story)
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  storyId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId])
+  @@index([userId])
+}

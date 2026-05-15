@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* SAGA 디자인 토큰 — CSS Variables */
+  --bg: #0d0d0f;
+  --bg2: #1a1a1f;
+  --bg3: #26262e;
+  --red: #e03e3e;
+  --t1: #f0f0f5;
+  --t2: #9090a0;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--t1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, sans-serif;
+}

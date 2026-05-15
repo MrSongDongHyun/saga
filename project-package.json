@@ -1,0 +1,18 @@
+{
+  "scripts": {
+    "agents:init": "bash init-project-agents.sh",
+    "agents:run": "claude agents run saga-director",
+    "agents:plan": "claude agents run plan",
+    "agents:dev": "claude agents run dev",
+    "agents:test": "claude agents run test",
+    "agents:review": "claude agents run review"
+  },
+  "comments": {
+    "agents:init": "프로젝트 에이전트 처음 초기화 (한 번만 실행)",
+    "agents:run": "총괄 에이전트 실행 (자동 워크플로우)",
+    "agents:plan": "설계 에이전트 실행",
+    "agents:dev": "개발 에이전트 실행",
+    "agents:test": "테스트 에이전트 실행",
+    "agents:review": "리뷰 에이전트 실행"
+  }
+}
