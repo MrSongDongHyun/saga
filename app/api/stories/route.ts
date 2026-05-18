@@ -26,11 +26,11 @@ const ALLOWED_STATUSES = ["ONGOING", "COMPLETED", "HIATUS"] as const;
 export const GET = withHandler(async (req: NextRequest) => {
   const { searchParams } = req.nextUrl;
 
-  // 페이지네이션
+  // 페이지네이션 — limit 미전달 또는 0이면 전체 조회
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
-  const limitRaw = parseInt(searchParams.get("limit") ?? "20", 10) || 20;
-  const limit = Math.min(50, Math.max(1, limitRaw));
-  const skip = (page - 1) * limit;
+  const limitRaw = parseInt(searchParams.get("limit") ?? "0", 10);
+  const limit = limitRaw > 0 ? limitRaw : undefined;
+  const skip = limit ? (page - 1) * limit : 0;
 
   // 필터 파라미터
   const statusParam = searchParams.get("status");
@@ -76,7 +76,7 @@ export const GET = withHandler(async (req: NextRequest) => {
       where,
       orderBy,
       skip,
-      take: limit,
+      ...(limit !== undefined && { take: limit }),
       include: {
         author: {
           select: {
@@ -101,9 +101,9 @@ export const GET = withHandler(async (req: NextRequest) => {
     stories: (stories as StoryWithCountAndAuthor[]).map(serializeStoryList),
     pagination: {
       page,
-      limit,
+      limit: limit ?? total,
       total,
-      totalPages: Math.ceil(total / limit),
+      totalPages: limit ? Math.ceil(total / limit) : 1,
     },
   });
 });

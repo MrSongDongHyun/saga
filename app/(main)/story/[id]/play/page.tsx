@@ -906,11 +906,15 @@ export default function StoryPlayPage() {
         onToggle={() => setStatusPanelOpen((v) => !v)}
       />
 
-      {/* 메인 레이아웃 */}
-      <div
-        className="fixed top-14 bottom-0 left-0 md:left-60 flex flex-col bg-bg z-10 overflow-hidden transition-all duration-300"
-        style={{ right: statusPanelOpen ? "256px" : "28px" }}
-      >
+      {/* 메인 레이아웃 — 900px 가운데 정렬 */}
+      <div className="fixed top-14 bottom-0 md:left-60 right-0 flex justify-center bg-bg z-10 overflow-hidden">
+        <div
+          className="w-full flex flex-col overflow-hidden transition-all duration-300"
+          style={{
+            maxWidth: "900px",
+            marginRight: statusPanelOpen ? "256px" : "0",
+          }}
+        >
         {/* ── 헤더 ── */}
         <header className="h-14 bg-bg2 border-b border-bg3 flex items-center px-4 gap-3 shrink-0">
           <button
@@ -997,7 +1001,7 @@ export default function StoryPlayPage() {
 
         {/* ── 본문 + 대화 (스크롤) ── */}
         <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <article className="px-6 py-8 max-w-2xl mx-auto">
+          <article className="px-6 py-8">
             <h2 className="text-t1 font-bold text-lg mb-6">
               {chapter.orderIndex}화. {chapter.title}
             </h2>
@@ -1008,7 +1012,7 @@ export default function StoryPlayPage() {
 
           <div className="border-t border-bg3 mx-6" />
 
-          <div className="px-4 py-4 max-w-2xl mx-auto space-y-4">
+          <div className="px-4 py-4 space-y-4">
             {playMessages.length === 0 &&
               !isSending &&
               !showStartModal && (
@@ -1088,7 +1092,7 @@ export default function StoryPlayPage() {
         <div className="border-t border-bg3 bg-bg shrink-0">
           {/* CHOICES 버튼 */}
           {currentChoices.length > 0 && !isSending && (
-            <div className="px-4 pt-3 pb-0 max-w-2xl mx-auto w-full">
+            <div className="px-4 pt-3 pb-0 w-full">
               <p className="text-xs text-t2 mb-2">
                 {isWuxia ? "⚔ 다음 행동" : "💬 선택지"}
               </p>
@@ -1109,7 +1113,7 @@ export default function StoryPlayPage() {
           )}
 
           {/* 툴바 (분기 + 자동재생) */}
-          <div className="px-4 pt-2 pb-0 flex items-center gap-2 max-w-2xl mx-auto w-full">
+          <div className="px-4 pt-2 pb-0 flex items-center gap-2 w-full">
             {/* 분기 버튼 */}
             <button
               type="button"
@@ -1186,7 +1190,7 @@ export default function StoryPlayPage() {
           </div>
 
           {/* 직접 입력 */}
-          <div className="px-4 pt-2 pb-safe-or-4 max-w-2xl mx-auto w-full">
+          <div className="px-4 pt-2 pb-safe-or-4 w-full">
             <div className="flex items-end gap-2">
               <textarea
                 ref={textareaRef}
@@ -1302,6 +1306,7 @@ export default function StoryPlayPage() {
               </button>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </>

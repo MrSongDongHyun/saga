@@ -37,10 +37,10 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 function SkeletonCard() {
   return (
     <div
-      className="flex-shrink-0 w-36 bg-bg2 rounded-xl overflow-hidden animate-pulse"
-      style={{ minWidth: "9rem" }}
+      className="bg-bg2 rounded-xl overflow-hidden animate-pulse"
+      style={{ width: "164px", height: "335px", flexShrink: 0 }}
     >
-      <div className="w-full bg-bg3" style={{ aspectRatio: "0.72" }} />
+      <div className="w-full bg-bg3" style={{ height: "247px" }} />
       <div className="p-3 flex flex-col gap-2">
         <div className="h-3 bg-bg3 rounded w-4/5" />
         <div className="h-2.5 bg-bg3 rounded w-1/2" />
@@ -50,17 +50,18 @@ function SkeletonCard() {
 }
 
 // ─────────────────────────────────────────────
-// 스토리 카드 리스트 (가로 스크롤용)
+// 스토리 카드 리스트
 // ─────────────────────────────────────────────
 function StoryCardList({
   genre,
   sort,
+  variant = "scroll",
 }: {
   genre: string;
   sort: "popular" | "latest";
+  variant?: "scroll" | "grid";
 }) {
   const params = new URLSearchParams({
-    limit: "10",
     sort,
     ...(genre ? { genre } : {}),
   });
@@ -93,11 +94,7 @@ function StoryCardList({
   return (
     <>
       {data.stories.map((story) => (
-        <div
-          key={story.id}
-          className="flex-shrink-0"
-          style={{ minWidth: "9rem", width: "9rem" }}
-        >
+        <div key={story.id} style={{ width: "164px", flexShrink: 0 }}>
           <StoryCard {...story} />
         </div>
       ))}
@@ -135,21 +132,22 @@ export default function HomePage() {
 
       {/* 콘텐츠 */}
       <div className="pt-6">
-        {/* 섹션: 지금 인기 */}
+        {/* 섹션: 지금 인기 — 최대 6열 wrap 그리드 */}
         <SectionRow
           title="지금 인기"
+          variant="grid"
           seeAllHref={`/stories?sort=popular${activeGenre ? `&genre=${activeGenre}` : ""}`}
         >
-          <StoryCardList genre={activeGenre} sort="popular" />
+          <StoryCardList genre={activeGenre} sort="popular" variant="grid" />
         </SectionRow>
 
-        {/* 섹션: 새로 올라왔어요 */}
-        <SectionRow
+        {/* 섹션: 새로 올라왔어요 — 숨김 */}
+        {/* <SectionRow
           title="새로 올라왔어요"
           seeAllHref={`/stories?sort=latest${activeGenre ? `&genre=${activeGenre}` : ""}`}
         >
           <StoryCardList genre={activeGenre} sort="latest" />
-        </SectionRow>
+        </SectionRow> */}
       </div>
     </div>
   );

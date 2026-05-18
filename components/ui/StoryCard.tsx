@@ -33,16 +33,17 @@ export function StoryCard({
     <Link
       href={`/stories/${id}`}
       className="group block bg-bg2 rounded-xl overflow-hidden hover:ring-1 hover:ring-red/40 transition-all"
+      style={{ width: "164px", height: "335px", flexShrink: 0 }}
     >
-      {/* 커버 이미지 — 세로형 0.72 비율 */}
-      <div className="relative w-full" style={{ aspectRatio: "0.72" }}>
+      {/* 커버 이미지 — 고정 168×247 */}
+      <div className="relative w-full" style={{ height: "247px" }}>
         {coverImage ? (
           <Image
             src={coverImage}
             alt={title}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            sizes="168px"
           />
         ) : (
           /* 커버 없을 때 플레이스홀더 */

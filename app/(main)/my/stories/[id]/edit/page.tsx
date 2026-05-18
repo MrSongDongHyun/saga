@@ -1,27 +1,36 @@
 "use client";
 
-// 스토리 수정 폼 페이지
-// 기존 데이터 로드 후 폼 초기화
+// 스토리 수정 — WRTN 스타일 3탭 다단계 폼
+// 기존 데이터 로드 후 탭 폼 초기화
 // PUT /api/stories/[id] — 성공 시 /my 이동
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useRef, KeyboardEvent, ChangeEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { GENRES } from "@/lib/constants/genres";
+import ImageGenModal from "@/components/ui/ImageGenModal";
 
 // ─────────────────────────────────────────────
 // 상수
 // ─────────────────────────────────────────────
+const TABS = [
+  { id: "profile",  label: "프로필",      required: true },
+  { id: "settings", label: "스토리 설정", required: true },
+  { id: "publish",  label: "공개 설정",   required: true },
+] as const;
+
+type TabId = (typeof TABS)[number]["id"];
+
 const STORY_STATUSES = [
-  { value: "ONGOING", label: "연재 중" },
+  { value: "ONGOING",   label: "연재 중" },
   { value: "COMPLETED", label: "완결" },
-  { value: "HIATUS", label: "휴재" },
+  { value: "HIATUS",    label: "휴재" },
 ] as const;
 
 const STORY_VISIBILITIES = [
-  { value: "PUBLIC", label: "공개" },
-  { value: "PRIVATE", label: "비공개" },
-  { value: "UNLISTED", label: "일부 공개 (링크 접근 가능)" },
+  { value: "PUBLIC",   label: "공개",    desc: "모든 사용자에게 공개됩니다" },
+  { value: "UNLISTED", label: "링크 공개", desc: "링크가 있는 사용자만 볼 수 있습니다" },
+  { value: "PRIVATE",  label: "비공개",  desc: "나만 볼 수 있습니다" },
 ] as const;
 
 // ─────────────────────────────────────────────
@@ -40,17 +49,15 @@ type StoryDetail = {
 
 type FormState = {
   title: string;
+  summary: string;
   description: string;
   genre: string[];
-  tagsInput: string;
+  tags: string[];
   status: string;
   visibility: string;
   coverImage: string;
 };
 
-// ─────────────────────────────────────────────
-// fetcher
-// ─────────────────────────────────────────────
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
@@ -60,44 +67,100 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
+// ─────────────────────────────────────────────
+// 보조 컴포넌트: 탭 헤더
+// ─────────────────────────────────────────────
+function TabBar({ activeTab, onTabChange }: { activeTab: TabId; onTabChange: (t: TabId) => void }) {
+  return (
+    <div className="flex border-b border-bg3 overflow-x-auto scrollbar-hide">
+      {TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onTabChange(tab.id)}
+          className={[
+            "flex-shrink-0 px-4 py-3 text-sm font-medium transition-colors",
+            activeTab === tab.id ? "text-t1 border-b-2 border-red" : "text-t2 hover:text-t1",
+          ].join(" ")}
+        >
+          {tab.label}{tab.required && <span className="text-red ml-0.5 text-xs">*</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 보조 컴포넌트: 태그 칩 입력
+// ─────────────────────────────────────────────
+function TagInput({ tags, onTagsChange }: { tags: string[]; onTagsChange: (t: string[]) => void }) {
+  const [input, setInput] = useState("");
+  function addTag(raw: string) {
+    const t = raw.trim().replace(/^#/, "");
+    if (!t || tags.includes(t) || tags.length >= 20) return;
+    onTagsChange([...tags, t]);
+  }
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(input); setInput(""); }
+    else if (e.key === "Backspace" && input === "" && tags.length > 0) onTagsChange(tags.slice(0, -1));
+  }
+  function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    if (val.includes(",")) { val.split(",").forEach((t) => addTag(t)); setInput(""); }
+    else setInput(val);
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5 bg-bg2 border border-bg3 focus-within:border-red/50 rounded-lg px-3 py-2 min-h-[44px] transition-colors">
+      {tags.map((t) => (
+        <span key={t} className="flex items-center gap-1 bg-bg3 text-t1 text-xs px-2 py-1 rounded-md">
+          #{t}
+          <button type="button" onClick={() => onTagsChange(tags.filter((x) => x !== t))} className="text-t2 hover:text-red transition-colors ml-0.5">×</button>
+        </span>
+      ))}
+      {tags.length < 20 && (
+        <input type="text" value={input} onChange={handleChange} onKeyDown={handleKeyDown}
+          placeholder={tags.length === 0 ? "태그 입력 후 Enter 또는 쉼표 (최대 20개)" : ""}
+          className="flex-1 min-w-[120px] bg-transparent text-sm text-t1 placeholder:text-t2 outline-none" />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 메인 페이지
+// ─────────────────────────────────────────────
 export default function StoryEditPage() {
   const { status } = useSession();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const storyId = params.id;
 
-  // 미인증 시 /login 리다이렉트
-  if (status === "unauthenticated") {
-    router.replace("/login");
-    return null;
-  }
+  if (status === "unauthenticated") { router.replace("/login"); return null; }
 
   const { data: story, error: loadError, isLoading } = useSWR<StoryDetail>(
-    storyId ? `/api/stories/${storyId}` : null,
-    fetcher
+    storyId ? `/api/stories/${storyId}` : null, fetcher
   );
 
+  const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [form, setForm] = useState<FormState>({
-    title: "",
-    description: "",
-    genre: [],
-    tagsInput: "",
-    status: "ONGOING",
-    visibility: "PUBLIC",
-    coverImage: "",
+    title: "", summary: "", description: "", genre: [], tags: [],
+    status: "ONGOING", visibility: "PUBLIC", coverImage: "",
   });
   const [initialized, setInitialized] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [imageGenOpen, setImageGenOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 기존 데이터로 폼 초기화 (최초 1회)
   useEffect(() => {
     if (story && !initialized) {
       setForm({
         title: story.title,
+        summary: story.description?.slice(0, 100) ?? "",
         description: story.description ?? "",
         genre: story.genre,
-        tagsInput: story.tags.join(", "),
+        tags: story.tags,
         status: story.status,
         visibility: story.visibility,
         coverImage: story.coverImage ?? "",
@@ -106,70 +169,66 @@ export default function StoryEditPage() {
     }
   }, [story, initialized]);
 
-  // 장르 체크박스 토글
-  const toggleGenre = (g: string) => {
-    setForm((prev) => ({
-      ...prev,
-      genre: prev.genre.includes(g)
-        ? prev.genre.filter((x) => x !== g)
-        : [...prev.genre, g],
-    }));
-  };
+  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
 
-  // 폼 제출
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setErrorMsg(null);
+  function toggleGenre(g: string) {
+    setField("genre", form.genre.includes(g) ? form.genre.filter((x) => x !== g) : [...form.genre, g]);
+  }
 
-    if (form.title.trim().length === 0) {
-      setErrorMsg("제목을 입력해주세요.");
-      return;
-    }
-    if (form.genre.length === 0) {
-      setErrorMsg("장르를 최소 하나 선택해주세요.");
-      return;
-    }
+  const tabOrder: TabId[] = ["profile", "settings", "publish"];
+  function goNext() { const i = tabOrder.indexOf(activeTab); if (i < tabOrder.length - 1) setActiveTab(tabOrder[i + 1]); }
+  function goPrev() { const i = tabOrder.indexOf(activeTab); if (i > 0) setActiveTab(tabOrder[i - 1]); }
 
-    const tags = form.tagsInput
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
+  function validateCurrent() {
+    if (activeTab === "profile" && form.title.trim().length < 1) return "제목을 입력해주세요.";
+    if (activeTab === "settings" && form.genre.length === 0) return "장르를 최소 하나 선택해주세요.";
+    return null;
+  }
 
-    setSubmitting(true);
+  function handleNext() {
+    const err = validateCurrent();
+    if (err) { setErrorMsg(err); return; }
+    setErrorMsg(null); goNext();
+  }
+
+  async function handleSubmit() {
+    if (form.title.trim().length === 0) { setErrorMsg("제목을 입력해주세요."); setActiveTab("profile"); return; }
+    if (form.genre.length === 0) { setErrorMsg("장르를 최소 하나 선택해주세요."); setActiveTab("settings"); return; }
+    setErrorMsg(null); setSubmitting(true);
     try {
       const res = await fetch(`/api/stories/${storyId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: form.title.trim(),
-          description: form.description.trim() || null,
+          description: form.description.trim() || form.summary.trim() || null,
           genre: form.genre,
-          tags,
+          tags: form.tags,
           status: form.status,
           visibility: form.visibility,
           coverImage: form.coverImage.trim() || null,
         }),
       });
-
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "요청 실패" }));
         setErrorMsg(body.error ?? "스토리 수정에 실패했습니다.");
         return;
       }
-
-      router.push("/my");
+      setSavedOk(true);
+      setTimeout(() => { setSavedOk(false); router.push("/my"); }, 1200);
     } catch {
       setErrorMsg("네트워크 오류가 발생했습니다.");
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  // 로딩 상태
   if (isLoading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-6">
+      <div className="max-w-xl mx-auto px-4 py-8">
+        <div className="animate-pulse space-y-4">
           <div className="h-8 bg-bg2 rounded w-1/3" />
           <div className="h-12 bg-bg2 rounded" />
           <div className="h-32 bg-bg2 rounded" />
@@ -178,191 +237,223 @@ export default function StoryEditPage() {
     );
   }
 
-  // 로드 실패
   if (loadError) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8 text-center">
+      <div className="max-w-xl mx-auto px-4 py-8 text-center">
         <p className="text-red mb-2">스토리를 불러오지 못했습니다.</p>
         <p className="text-sm text-t2">{loadError.message}</p>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      {/* 헤더 */}
-      <div className="flex items-center gap-3 mb-8">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="text-t2 hover:text-t1 transition-colors"
-          aria-label="뒤로 가기"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M19 12H5M12 5l-7 7 7 7" />
-          </svg>
-        </button>
-        <h1 className="text-xl font-bold text-t1">스토리 수정</h1>
-      </div>
+  const isLastTab = activeTab === "publish";
+  const isFirstTab = activeTab === "profile";
 
-      {/* 에러 메시지 */}
+  return (
+    <div className="min-h-screen flex flex-col bg-bg">
+      {/* 헤더 */}
+      <header className="h-14 bg-bg2 border-b border-bg3 flex items-center px-4 gap-3 shrink-0 sticky top-0 z-10">
+        <button type="button" onClick={() => router.back()}
+          className="w-8 h-8 flex items-center justify-center text-t2 hover:text-t1 transition-colors rounded-lg hover:bg-bg3" aria-label="뒤로">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h1 className="text-base font-bold text-t1 flex-1">스토리 수정</h1>
+        {savedOk && <span className="text-xs text-green-400">✓ 저장됨</span>}
+      </header>
+
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+
       {errorMsg && (
-        <div className="mb-6 px-4 py-3 bg-red/10 border border-red/30 rounded-lg text-red text-sm">
-          {errorMsg}
-        </div>
+        <div className="mx-4 mt-4 px-4 py-3 bg-red/10 border border-red/30 rounded-lg text-red text-sm">{errorMsg}</div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        {/* 제목 */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="title" className="text-sm font-medium text-t1">
-            제목 <span className="text-red">*</span>
-          </label>
-          <input
-            id="title"
-            type="text"
-            value={form.title}
-            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-            maxLength={100}
-            placeholder="스토리 제목을 입력하세요"
-            className="bg-bg2 border border-bg3 focus:border-red/50 rounded-lg px-4 py-2.5 text-sm text-t1 placeholder:text-t2 outline-none transition-colors"
-            required
-          />
-        </div>
+      <div className="flex-1 overflow-y-auto pb-24">
+        {/* ===== 프로필 탭 ===== */}
+        {activeTab === "profile" && (
+          <div className="max-w-xl mx-auto px-4 py-6 flex flex-col gap-6">
+            {/* 커버 이미지 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-t1">커버 이미지</label>
+              <div className="flex gap-4 items-start">
+                <div className="shrink-0 w-24 h-36 rounded-xl bg-bg3 border border-bg3 overflow-hidden flex items-center justify-center">
+                  {form.coverImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={form.coverImage} alt="커버" className="w-full h-full object-cover" />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-t2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  )}
+                </div>
+                <div className="flex-1 flex flex-col gap-2">
+                  <p className="text-xs text-t2 leading-relaxed">이미지를 업로드하거나 URL을 입력하세요.<br/>권장 비율: 2:3</p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1 text-xs px-3 py-1.5 border border-bg3 hover:border-t2/50 text-t2 hover:text-t1 rounded-lg transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      업로드
+                    </button>
+                    {form.coverImage && (
+                      <button type="button" onClick={() => setField("coverImage", "")}
+                        className="text-xs px-3 py-1.5 border border-bg3 hover:border-red/40 text-t2 hover:text-red rounded-lg transition-colors">삭제</button>
+                    )}
+                    <button type="button" onClick={() => setImageGenOpen(true)}
+                      className="flex items-center gap-1 text-xs px-3 py-1.5 border border-bg3 hover:border-red/40 text-t2 hover:text-red rounded-lg transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                      AI 생성
+                    </button>
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setField("coverImage", URL.createObjectURL(file));
+                    }} />
+                  <input type="url" value={form.coverImage} onChange={(e) => setField("coverImage", e.target.value)}
+                    placeholder="또는 이미지 URL 직접 입력"
+                    className="bg-bg2 border border-bg3 focus:border-red/50 rounded-lg px-3 py-2 text-xs text-t1 placeholder:text-t2 outline-none transition-colors" />
+                </div>
+              </div>
+            </div>
 
-        {/* 설명 */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="description" className="text-sm font-medium text-t1">
-            설명
-          </label>
-          <textarea
-            id="description"
-            value={form.description}
-            onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-            maxLength={500}
-            rows={4}
-            placeholder="스토리 소개를 입력하세요 (최대 500자)"
-            className="bg-bg2 border border-bg3 focus:border-red/50 rounded-lg px-4 py-2.5 text-sm text-t1 placeholder:text-t2 outline-none resize-none transition-colors"
-          />
-          <p className="text-xs text-t2 text-right">{form.description.length} / 500</p>
-        </div>
+            {/* 제목 */}
+            <div className="flex flex-col gap-2">
+              <label htmlFor="title" className="text-sm font-medium text-t1">제목 <span className="text-red">*</span></label>
+              <input id="title" type="text" value={form.title}
+                onChange={(e) => setField("title", e.target.value)}
+                maxLength={50} placeholder="2~50자 이내로 입력해 주세요"
+                className="bg-bg2 border border-bg3 focus:border-red/50 rounded-lg px-4 py-2.5 text-sm text-t1 placeholder:text-t2 outline-none transition-colors" />
+              <p className="text-xs text-t2 text-right">{form.title.length} / 50</p>
+            </div>
 
-        {/* 장르 체크박스 */}
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-t1">
-            장르 <span className="text-red">*</span>
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {GENRES.map((g) => {
-              const checked = form.genre.includes(g);
-              return (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => toggleGenre(g)}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                    checked
-                      ? "bg-red/20 border-red/50 text-red"
-                      : "bg-bg2 border-bg3 text-t2 hover:border-t2/50 hover:text-t1"
-                  }`}
-                >
-                  {g}
-                </button>
-              );
-            })}
+            {/* 한 줄 소개 */}
+            <div className="flex flex-col gap-2">
+              <label htmlFor="summary" className="text-sm font-medium text-t1">한 줄 소개</label>
+              <textarea id="summary" value={form.summary}
+                onChange={(e) => setField("summary", e.target.value)}
+                maxLength={100} rows={2} placeholder="어떤 스토리인지 간단히 소개해 주세요"
+                className="bg-bg2 border border-bg3 focus:border-red/50 rounded-lg px-4 py-2.5 text-sm text-t1 placeholder:text-t2 outline-none resize-none transition-colors" />
+              <p className="text-xs text-t2 text-right">{form.summary.length} / 100</p>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* 태그 */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="tags" className="text-sm font-medium text-t1">
-            태그
-          </label>
-          <input
-            id="tags"
-            type="text"
-            value={form.tagsInput}
-            onChange={(e) => setForm((p) => ({ ...p, tagsInput: e.target.value }))}
-            placeholder="태그를 쉼표로 구분하여 입력 (예: 이세계, 회귀)"
-            className="bg-bg2 border border-bg3 focus:border-red/50 rounded-lg px-4 py-2.5 text-sm text-t1 placeholder:text-t2 outline-none transition-colors"
-          />
-          <p className="text-xs text-t2">쉼표(,)로 구분하여 최대 20개 입력 가능</p>
-        </div>
+        {/* ===== 스토리 설정 탭 ===== */}
+        {activeTab === "settings" && (
+          <div className="max-w-xl mx-auto px-4 py-6 flex flex-col gap-6">
+            {/* 장르 */}
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-t1">장르 <span className="text-red">*</span></span>
+              <div className="flex flex-wrap gap-2">
+                {GENRES.map((g) => {
+                  const checked = form.genre.includes(g);
+                  return (
+                    <button key={g} type="button" onClick={() => toggleGenre(g)}
+                      className={["text-xs px-3 py-1.5 rounded-full border transition-colors",
+                        checked ? "bg-red/20 border-red/50 text-red font-medium" : "bg-bg2 border-bg3 text-t2 hover:border-t2/50 hover:text-t1"].join(" ")}>
+                      {g}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        {/* 연재 상태 */}
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-t1">연재 상태</span>
-          <div className="flex flex-wrap gap-3">
-            {STORY_STATUSES.map(({ value, label }) => (
-              <label key={value} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="status"
-                  value={value}
-                  checked={form.status === value}
-                  onChange={() => setForm((p) => ({ ...p, status: value }))}
-                  className="accent-red"
-                />
-                <span className="text-sm text-t1">{label}</span>
-              </label>
-            ))}
+            {/* 태그 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-t1">태그</label>
+              <TagInput tags={form.tags} onTagsChange={(t) => setField("tags", t)} />
+              <p className="text-xs text-t2">{form.tags.length} / 20개</p>
+            </div>
+
+            {/* 연재 상태 */}
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-t1">연재 상태</span>
+              <div className="flex gap-2">
+                {STORY_STATUSES.map(({ value, label }) => (
+                  <button key={value} type="button" onClick={() => setField("status", value)}
+                    className={["flex-1 py-2 text-sm rounded-lg border transition-colors",
+                      form.status === value ? "bg-red/20 border-red/50 text-red font-medium" : "bg-bg2 border-bg3 text-t2 hover:border-t2/50 hover:text-t1"].join(" ")}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 상세 설명 */}
+            <div className="flex flex-col gap-2">
+              <label htmlFor="description" className="text-sm font-medium text-t1">상세 설명</label>
+              <textarea id="description" value={form.description}
+                onChange={(e) => setField("description", e.target.value)}
+                maxLength={500} rows={5} placeholder="스토리의 배경, 세계관, 주요 등장인물 등 (최대 500자)"
+                className="bg-bg2 border border-bg3 focus:border-red/50 rounded-lg px-4 py-2.5 text-sm text-t1 placeholder:text-t2 outline-none resize-none transition-colors" />
+              <p className="text-xs text-t2 text-right">{form.description.length} / 500</p>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* 공개 범위 */}
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-t1">공개 범위</span>
-          <div className="flex flex-col gap-2">
-            {STORY_VISIBILITIES.map(({ value, label }) => (
-              <label key={value} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="visibility"
-                  value={value}
-                  checked={form.visibility === value}
-                  onChange={() => setForm((p) => ({ ...p, visibility: value }))}
-                  className="accent-red"
-                />
-                <span className="text-sm text-t1">{label}</span>
-              </label>
-            ))}
+        {/* ===== 공개 설정 탭 ===== */}
+        {activeTab === "publish" && (
+          <div className="max-w-xl mx-auto px-4 py-6 flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
+              <span className="text-sm font-medium text-t1">공개 범위 <span className="text-red">*</span></span>
+              {STORY_VISIBILITIES.map(({ value, label, desc }) => (
+                <label key={value}
+                  className={["flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors",
+                    form.visibility === value ? "bg-red/5 border-red/40" : "bg-bg2 border-bg3 hover:border-t2/30"].join(" ")}>
+                  <input type="radio" name="visibility" value={value} checked={form.visibility === value}
+                    onChange={() => setField("visibility", value)} className="accent-red mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-t1">{label}</p>
+                    <p className="text-xs text-t2 mt-0.5">{desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {/* 요약 확인 */}
+            <div className="bg-bg2 border border-bg3 rounded-xl p-4 flex flex-col gap-2">
+              <p className="text-xs font-semibold text-t1">최종 확인</p>
+              <div className="flex gap-3">
+                {form.coverImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={form.coverImage} alt="커버" className="w-12 object-cover rounded-lg shrink-0" style={{height: "72px"}} />
+                )}
+                <div className="flex flex-col gap-1 text-xs text-t2">
+                  <p className="text-t1 font-medium text-sm">{form.title || "(제목 없음)"}</p>
+                  <p className="line-clamp-2">{form.summary || "(소개 없음)"}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {form.genre.map((g) => (
+                      <span key={g} className="bg-bg3 text-t2 px-2 py-0.5 rounded-full text-xs">{g}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* 커버 이미지 URL */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="coverImage" className="text-sm font-medium text-t1">
-            커버 이미지 URL
-          </label>
-          <input
-            id="coverImage"
-            type="url"
-            value={form.coverImage}
-            onChange={(e) => setForm((p) => ({ ...p, coverImage: e.target.value }))}
-            maxLength={500}
-            placeholder="https://example.com/cover.jpg"
-            className="bg-bg2 border border-bg3 focus:border-red/50 rounded-lg px-4 py-2.5 text-sm text-t1 placeholder:text-t2 outline-none transition-colors"
-          />
-        </div>
-
-        {/* 제출 버튼 */}
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex-1 bg-red hover:bg-red/80 disabled:bg-red/40 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
-          >
+      {/* 하단 고정 버튼바 */}
+      <div className="fixed bottom-0 left-0 right-0 bg-bg border-t border-bg3 px-4 py-3 flex items-center gap-3 z-10">
+        {!isFirstTab && (
+          <button type="button" onClick={goPrev}
+            className="px-5 py-2.5 border border-bg3 hover:border-t2/50 text-t2 hover:text-t1 text-sm rounded-lg transition-colors">
+            이전
+          </button>
+        )}
+        {isLastTab ? (
+          <button type="button" onClick={handleSubmit} disabled={submitting}
+            className="flex-1 bg-red hover:bg-red/80 disabled:bg-red/40 text-white text-sm font-medium py-2.5 rounded-lg transition-colors">
             {submitting ? "저장 중..." : "수정 저장"}
           </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="px-6 py-2.5 border border-bg3 hover:border-t2/50 text-t2 hover:text-t1 text-sm rounded-lg transition-colors"
-          >
-            취소
+        ) : (
+          <button type="button" onClick={handleNext}
+            className="flex-1 bg-red hover:bg-red/80 text-white text-sm font-medium py-2.5 rounded-lg transition-colors">
+            다음
           </button>
-        </div>
-      </form>
+        )}
+      </div>
+
+      <ImageGenModal open={imageGenOpen} onClose={() => setImageGenOpen(false)}
+        defaultPrompt={form.title ? `${form.title} 스토리 커버 이미지, book cover, cinematic` : "story book cover, cinematic"}
+        onGenerated={(url) => { setField("coverImage", url); setImageGenOpen(false); }} />
     </div>
   );
 }
