@@ -41,3 +41,4 @@ JSON 형식으로만 응답합니다. 설명 없이 JSON만 출력하세요.`;
     console.error("[story-profile]", err);
     return NextResponse.json({ error: "AI 생성에 실패했습니다." }, { status: 500 });
 }
+}

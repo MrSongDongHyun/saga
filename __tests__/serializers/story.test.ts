@@ -30,6 +30,20 @@ function makeRawStory(
     authorId: "author-id-001",
     createdAt: now,
     updatedAt: now,
+    // Phase 1
+    promptTemplate: "basic",
+    storyInfo: null,
+    exampleDialogs: "[]",
+    prologue: null,
+    startContext: null,
+    playGuide: null,
+    // Phase 4
+    tagline: null,
+    hashtags: "[]",
+    maxOutput: 1024,
+    isAdult: false,
+    target: null,
+    conversationFormat: null,
     author: {
       id: "author-id-001",
       nickname: "작가닉네임",
@@ -62,6 +76,20 @@ function makeRawStoryDetail(
     authorId: "author-id-001",
     createdAt: now,
     updatedAt: now,
+    // Phase 1
+    promptTemplate: "basic",
+    storyInfo: null,
+    exampleDialogs: "[]",
+    prologue: null,
+    startContext: null,
+    playGuide: null,
+    // Phase 4
+    tagline: null,
+    hashtags: "[]",
+    maxOutput: 1024,
+    isAdult: false,
+    target: null,
+    conversationFormat: null,
     author: {
       id: "author-id-001",
       nickname: "작가닉네임",
@@ -181,7 +209,6 @@ describe("serializeStoryList", () => {
   it("chapters 필드 없음 (목록용 최적화)", () => {
     const raw = makeRawStory();
     const result = serializeStoryList(raw);
-    // StoryListItem 타입에는 chapters 없음
     expect((result as Record<string, unknown>).chapters).toBeUndefined();
   });
 });
@@ -269,6 +296,24 @@ describe("serializeStoryDetail", () => {
     expect(result.genre).toEqual(["액션", "판타지"]);
     expect(result.tags).toEqual(["용사", "마법사"]);
   });
+
+  it("Phase 1: exampleDialogs JSON 파싱 확인", () => {
+    const raw = makeRawStoryDetail({ exampleDialogs: '[{"user":"안녕","ai":"반가워"}]' });
+    const result = serializeStoryDetail(raw);
+    expect(result.exampleDialogs).toEqual([{ user: "안녕", ai: "반가워" }]);
+  });
+
+  it("Phase 1: promptTemplate 포함 확인", () => {
+    const raw = makeRawStoryDetail({ promptTemplate: "roleplay" });
+    const result = serializeStoryDetail(raw);
+    expect(result.promptTemplate).toBe("roleplay");
+  });
+
+  it("Phase 4: hashtags JSON 파싱 확인", () => {
+    const raw = makeRawStoryDetail({ hashtags: '["판타지","이세계"]' });
+    const result = serializeStoryDetail(raw);
+    expect(result.hashtags).toEqual(["판타지", "이세계"]);
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -289,7 +334,6 @@ describe("safeParseArray 방어 코드", () => {
   });
 
   it("genre가 JSON 객체(배열 아님) → 빈 배열 반환", () => {
-    // JSON 파싱은 성공하지만 배열이 아닌 경우
     const raw = makeRawStory({ genre: '{"key":"value"}' });
     const result = serializeStoryList(raw);
     expect(result.genre).toEqual([]);
@@ -302,7 +346,6 @@ describe("safeParseArray 방어 코드", () => {
   });
 
   it("genre에 숫자 항목 포함 → 문자열만 필터링", () => {
-    // safeParseArray는 string만 반환
     const raw = makeRawStory({ genre: '["판타지", 123, "로맨스"]' });
     const result = serializeStoryList(raw);
     expect(result.genre).toEqual(["판타지", "로맨스"]);

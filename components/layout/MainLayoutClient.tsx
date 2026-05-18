@@ -24,8 +24,8 @@ export function MainLayoutClient({
           onClose={() => setSidebarOpen(false)}
         />
 
-        {/* 메인 콘텐츠 영역 */}
-        <main className="flex-1 overflow-auto min-w-0">
+        {/* 메인 콘텐츠 영역 — 모바일 하단 탭바(64px) 만큼 패딩 추가 */}
+        <main className="flex-1 overflow-auto min-w-0 pb-16 md:pb-0">
           {children}
         </main>
       </div>

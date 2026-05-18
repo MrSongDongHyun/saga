@@ -80,6 +80,12 @@ export type StoryChapterSummary = {
   updatedAt: string;
 };
 
+/** 전개 예시 쌍 */
+export type ExampleDialog = {
+  user: string;
+  ai: string;
+};
+
 export type StoryListItem = {
   id: string;
   title: string;
@@ -96,12 +102,27 @@ export type StoryListItem = {
   author: StoryAuthor;
   createdAt: string;
   updatedAt: string;
+  // Phase 4
+  tagline: string | null;
+  hashtags: string[];
+  isAdult: boolean;
 };
 
 export type StoryDetail = StoryListItem & {
   chapters: StoryChapterSummary[];
   isLiked?: boolean;
   isBookmarked?: boolean;
+  // Phase 1
+  promptTemplate: string;
+  storyInfo: string | null;
+  exampleDialogs: ExampleDialog[];
+  prologue: string | null;
+  startContext: string | null;
+  playGuide: string | null;
+  // Phase 4
+  maxOutput: number;
+  target: string | null;
+  conversationFormat: string | null;
 };
 
 // ─────────────────────────────────────────────
@@ -119,6 +140,26 @@ function safeParseArray(raw: string): string[] {
       return parsed.filter((item): item is string => typeof item === "string");
     }
     return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * ExampleDialog 배열 파싱
+ * 파싱 실패 시 빈 배열 반환
+ */
+function safeParseExampleDialogs(raw: string): ExampleDialog[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is ExampleDialog =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as Record<string, unknown>).user === "string" &&
+        typeof (item as Record<string, unknown>).ai === "string"
+    );
   } catch {
     return [];
   }
@@ -153,6 +194,10 @@ export function serializeStoryList(raw: StoryWithCountAndAuthor): StoryListItem 
     },
     createdAt: raw.createdAt.toISOString(),
     updatedAt: raw.updatedAt.toISOString(),
+    // Phase 4
+    tagline: raw.tagline ?? null,
+    hashtags: safeParseArray(raw.hashtags),
+    isAdult: raw.isAdult,
   };
 }
 
@@ -192,6 +237,20 @@ export function serializeStoryDetail(
     })),
     createdAt: raw.createdAt.toISOString(),
     updatedAt: raw.updatedAt.toISOString(),
+    // Phase 1
+    promptTemplate: raw.promptTemplate,
+    storyInfo: raw.storyInfo ?? null,
+    exampleDialogs: safeParseExampleDialogs(raw.exampleDialogs),
+    prologue: raw.prologue ?? null,
+    startContext: raw.startContext ?? null,
+    playGuide: raw.playGuide ?? null,
+    // Phase 4
+    tagline: raw.tagline ?? null,
+    hashtags: safeParseArray(raw.hashtags),
+    maxOutput: raw.maxOutput,
+    isAdult: raw.isAdult,
+    target: raw.target ?? null,
+    conversationFormat: raw.conversationFormat ?? null,
     ...(options?.isLiked !== undefined && { isLiked: options.isLiked }),
     ...(options?.isBookmarked !== undefined && {
       isBookmarked: options.isBookmarked,

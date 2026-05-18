@@ -152,29 +152,31 @@ export const PUT = withDynamicHandler(async (req, context) => {
   // Prisma 업데이트 데이터 동적 구성 (존재하는 필드만)
   const updateData: Prisma.StoryUpdateInput = {};
 
-  if (input.title !== undefined) {
-    updateData.title = input.title;
+  if (input.title !== undefined) updateData.title = input.title;
+  if ("description" in input) updateData.description = input.description ?? null;
+  if (input.genre !== undefined) updateData.genre = JSON.stringify(input.genre);
+  if (input.tags !== undefined) updateData.tags = JSON.stringify(input.tags);
+  if (input.status !== undefined) updateData.status = input.status;
+  if (input.visibility !== undefined) updateData.visibility = input.visibility;
+  if ("coverImage" in input) updateData.coverImage = input.coverImage ?? null;
+
+  // Phase 1
+  if (input.promptTemplate !== undefined) updateData.promptTemplate = input.promptTemplate;
+  if ("storyInfo" in input) updateData.storyInfo = input.storyInfo ?? null;
+  if (input.exampleDialogs !== undefined) {
+    updateData.exampleDialogs = JSON.stringify(input.exampleDialogs);
   }
-  if ("description" in input) {
-    // null이면 DB null로 저장 (삭제), 문자열이면 업데이트
-    updateData.description = input.description ?? null;
-  }
-  if (input.genre !== undefined) {
-    updateData.genre = JSON.stringify(input.genre);
-  }
-  if (input.tags !== undefined) {
-    updateData.tags = JSON.stringify(input.tags);
-  }
-  if (input.status !== undefined) {
-    updateData.status = input.status;
-  }
-  if (input.visibility !== undefined) {
-    updateData.visibility = input.visibility;
-  }
-  if ("coverImage" in input) {
-    // null이면 DB null로 저장 (삭제), 문자열이면 업데이트
-    updateData.coverImage = input.coverImage ?? null;
-  }
+  if ("prologue" in input) updateData.prologue = input.prologue ?? null;
+  if ("startContext" in input) updateData.startContext = input.startContext ?? null;
+  if ("playGuide" in input) updateData.playGuide = input.playGuide ?? null;
+
+  // Phase 4
+  if ("tagline" in input) updateData.tagline = input.tagline ?? null;
+  if (input.hashtags !== undefined) updateData.hashtags = JSON.stringify(input.hashtags);
+  if (input.maxOutput !== undefined) updateData.maxOutput = input.maxOutput;
+  if (input.isAdult !== undefined) updateData.isAdult = input.isAdult;
+  if ("target" in input) updateData.target = input.target ?? null;
+  if ("conversationFormat" in input) updateData.conversationFormat = input.conversationFormat ?? null;
 
   try {
     const updated = await prisma.story.update({

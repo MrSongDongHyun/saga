@@ -68,6 +68,7 @@ export const GET = withDynamicHandler<SessionParams>(
         firstMessage: session.character.firstMessage ?? null,
         tags,
       },
+      model: session.model,
       messageCount: session._count.messages,
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString(),
@@ -107,7 +108,7 @@ export const PATCH = withDynamicHandler<SessionParams>(
 
     const updated = await prisma.chatSession.update({
       where: { id: sessionId },
-      data: { title: input.title ?? undefined, updatedAt: new Date() },
+      data: { title: input.title ?? undefined, model: input.model ?? undefined, updatedAt: new Date() },
     });
 
     return NextResponse.json({ session: { id: updated.id, title: updated.title } });

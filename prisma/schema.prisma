@@ -57,11 +57,34 @@ model Story {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Phase 1 — 스토리 설정 고도화
+  promptTemplate String  @default("basic")   // basic|roleplay|simulation|custom
+  storyInfo      String? // 세계관/등장인물 정보 (4000자)
+  exampleDialogs String  @default("[]")      // JSON: [{user:string,ai:string}]
+  prologue       String? // 플레이 오프닝 (1000자)
+  startContext   String? // AI용 시작 상황 (1000자)
+  playGuide      String? // 유저 전용 가이드 (500자, AI 불전달)
+
+  // Phase 4 — 등록/공개 시스템
+  tagline            String?               // 한 줄 소개 (30자)
+  hashtags           String  @default("[]")  // JSON string[]
+  maxOutput          Int     @default(1024)  // 최대 출력 토큰
+  isAdult            Boolean @default(false)
+  target             String? // ALL|TEEN|ADULT
+  conversationFormat String? // CHAT|NOVEL|GAME
+
   author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   chapters  Chapter[]
   likes     Like[]
   bookmarks Bookmark[]
   playSessions PlaySession[]
+
+  // Phase 2 — 커스텀 스탯
+  statDefs  StoryStatDef[]
+  // Phase 3 — 엔딩
+  endings   StoryEnding[]
+  // Phase 5 — 미디어
+  mediaItems StoryMedia[]
 
   @@index([authorId])
   @@index([visibility, createdAt])
@@ -169,6 +192,8 @@ model PlaySession {
   user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   story    Story        @relation(fields: [storyId], references: [id], onDelete: Cascade)
   messages PlayMessage[]
+  // Phase 2 — 커스텀 스탯 값
+  statValues PlayStatValue[]
 
   @@index([userId, updatedAt])
   @@index([storyId])
@@ -214,4 +239,113 @@ model Bookmark {
 
   @@unique([userId, storyId])
   @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// Phase 2 — 커스텀 스탯 시스템
+// ─────────────────────────────────────────────
+
+/// 스토리별 커스텀 스탯 정의
+model StoryStatDef {
+  id          String      @id @default(cuid())
+  storyId     String
+  story       Story       @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  name        String      // 스탯 이름 (max 10자)
+  icon        String      @default("circle") // heart|star|circle|shield|fire|sword|key|crown|gem|bolt
+  color       String      @default("yellow") // red|orange|yellow|green|blue|purple|pink|teal|gray
+  unit        String?     // %, 개, 순위 등 (max 3자)
+  minVal      Int         @default(0)
+  maxVal      Int         @default(100)
+  defaultVal  Int         @default(50)
+  description String      @default("") // AI 판단 기준 (500자)
+  sortOrder   Int         @default(0)
+  levels      StatLevel[]
+  createdAt   DateTime    @default(now())
+
+  @@index([storyId])
+}
+
+/// 스탯 레벨 정의
+model StatLevel {
+  id        String       @id @default(cuid())
+  statDefId String
+  statDef   StoryStatDef @relation(fields: [statDefId], references: [id], onDelete: Cascade)
+  name      String       // 레벨명 (max 10자)
+  minVal    Int
+  maxVal    Int
+  prompt    String       @default("") // 레벨별 AI 지시 (100자)
+  sortOrder Int          @default(0)
+
+  @@index([statDefId])
+}
+
+/// 플레이 세션별 스탯 값
+model PlayStatValue {
+  id        String   @id @default(cuid())
+  sessionId String
+  statDefId String
+  value     Int
+  updatedAt DateTime @updatedAt
+
+  session PlaySession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, statDefId])
+  @@index([sessionId])
+}
+
+// ─────────────────────────────────────────────
+// Phase 3 — 엔딩 시스템
+// ─────────────────────────────────────────────
+
+/// 스토리 엔딩 정의
+model StoryEnding {
+  id         String           @id @default(cuid())
+  storyId    String
+  story      Story            @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  grade      String           @default("N")  // N|R|SR|SSR
+  name       String           // 엔딩 이름 (20자)
+  image      String?          // 카드 이미지 URL
+  prompt     String           @default("") // AI 판단 조건 (500자)
+  epilogue   String?          // 에필로그 (1000자)
+  hint       String?          // 유저 힌트 (20자)
+  minTurn    Int              @default(10)
+  startTurn  Int              @default(10)
+  sortOrder  Int              @default(0)
+  conditions EndingCondition[]
+  createdAt  DateTime         @default(now())
+
+  @@index([storyId])
+}
+
+/// 엔딩 조건
+model EndingCondition {
+  id        String      @id @default(cuid())
+  endingId  String
+  ending    StoryEnding @relation(fields: [endingId], references: [id], onDelete: Cascade)
+  statDefId String      // StoryStatDef id
+  operator  String      // gt|gte|lt|lte|eq|ne
+  value     Int
+  groupId   Int         @default(0) // 0=AND, 같은 groupId끼리 OR
+
+  @@index([endingId])
+}
+
+// ─────────────────────────────────────────────
+// Phase 5 — 상황 이미지 미디어 시스템
+// ─────────────────────────────────────────────
+
+/// 스토리 미디어 이미지 (분류×상황 매트릭스)
+model StoryMedia {
+  id        String   @id @default(cuid())
+  storyId   String
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  category  String   // 분류 (예: 에피, 전투, 감정)
+  situation String   // 상황 (예: 기쁨, 슬픔, 분노)
+  imageUrl  String   // /media/[storyId]/[filename]
+  filename  String   // 원본 파일명
+  fileSize  Int      @default(0) // bytes
+  createdAt DateTime @default(now())
+
+  @@index([storyId])
+  @@index([storyId, category, situation])
 }
