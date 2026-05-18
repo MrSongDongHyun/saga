@@ -1084,33 +1084,35 @@ export default function StoryPlayPage() {
                 </div>
               </div>
             )}
+
+            {/* CHOICES — 채팅 로그 맨 아래에 인라인으로 표시 */}
+            {currentChoices.length > 0 && !isSending && (
+              <div className="pt-1 pb-2">
+                <p className="text-xs text-t2 mb-2 px-1">
+                  {isWuxia ? "⚔ 다음 행동" : "💬 선택지"}
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {currentChoices.map((choice, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={isSending}
+                      onClick={() => handleSend(choice)}
+                      className="text-left px-4 py-2.5 bg-bg3 hover:bg-bg2 text-t1 text-sm rounded-xl transition-colors border border-bg3 hover:border-t2/30 disabled:opacity-50"
+                    >
+                      {choice}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div ref={bottomRef} />
           </div>
         </div>
 
-        {/* ── 추천답변 + 입력 영역 ── */}
+        {/* ── 툴바 + 입력 영역 ── */}
         <div className="border-t border-bg3 bg-bg shrink-0">
-          {/* CHOICES 버튼 */}
-          {currentChoices.length > 0 && !isSending && (
-            <div className="px-4 pt-3 pb-0 w-full">
-              <p className="text-xs text-t2 mb-2">
-                {isWuxia ? "⚔ 다음 행동" : "💬 선택지"}
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {currentChoices.map((choice, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    disabled={isSending}
-                    onClick={() => handleSend(choice)}
-                    className="text-left px-4 py-2.5 bg-bg3 hover:bg-bg2 text-t1 text-sm rounded-xl transition-colors border border-bg3 hover:border-t2/30 disabled:opacity-50"
-                  >
-                    {choice}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* 툴바 (분기 + 자동재생) */}
           <div className="px-4 pt-2 pb-0 flex items-center gap-2 w-full">
