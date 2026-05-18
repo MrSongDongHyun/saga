@@ -39,3 +39,10 @@ yarn-error.log*
 # 타입스크립트
 *.tsbuildinfo
 next-env.d.ts
+
+# Stable Diffusion (대용량 바이너리 — 로컬에서만 실행)
+stable-diffusion-webui-forge/
+forge_log.txt
+
+# 생성된 미디어 이미지 (public/media는 배포 시 별도 관리)
+public/media/
